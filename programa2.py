@@ -423,7 +423,8 @@ class AppMetro:
         self.canvas=tk.Canvas(self.frame_right, bg="white")
         self.canvas.pack(fill="both", expand=True)
 
-        self.cargar_imagen("Mapa_metro.png")
+        self.img_pil = Image.open("Mapa_metro.png")
+        self.orig_w, self.orig_h = self.img_pil.size
         
         # Iconos de servicios
         try:
@@ -476,13 +477,6 @@ class AppMetro:
         self.ruta=None
         self.nodo_origen_click=None
         self.nodo_destino_click=None
-
-    # ============================================================
-    # IMAGEN
-    # ============================================================
-    def cargar_imagen(self,path):
-        self.img_pil = Image.open(path)
-        self.orig_w, self.orig_h = self.img_pil.size
 
     # ============================================================
     # REDIBUJAR
