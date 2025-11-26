@@ -6,19 +6,16 @@ import networkx as nx
 import math
 import heapq
 import json
-import os
 
 # =============================================================
 # CONSTANTES
 # =============================================================
 
-PENALIZACION = 300
-TIEMPO_PARADA = 20
+PENALIZACION = 300  # Penalización por transbordo (5 minutos)
+TIEMPO_PARADA = 20  # Tiempo de parada en cada estación
 VELOCIDAD_METRO = 10.0  # m/s
 
-# --- SISTEMA DE AJUSTE MANUAL DE ÍCONOS ---
-# Si un ícono tapa el nombre de la estación, agrega la estación aquí.
-# Formato: "Nombre_Estacion": (Desplazamiento_X, Desplazamiento_Y)
+# Offset de los iconos
 # Valores negativos: Izquierda/Arriba. Valores positivos: Derecha/Abajo.
 AJUSTES_ICONOS = {
     "Tacubaya_L1": (-25, -10),
@@ -26,11 +23,10 @@ AJUSTES_ICONOS = {
     "Observatorio_L1": (0, -25),
     "Tacubaya_L9": (0, 25),
     "Centro Medico_L9": (0, -20),
-    # Agrega aquí más estaciones si ves que chocan
 }
 
-# -------- HEURÍSTICA --------
-HEURISTICA = {
+# Latitud y longitud
+LAT_LON = {
     "Observatorio_L1": (19.398333, -99.200278),
     "Tacubaya_L1": (19.403333, -99.187222),
     "Juanacatlan_L1": (19.412778, -99.182222),
@@ -78,7 +74,6 @@ HEURISTICA = {
     "Juarez_L3": (19.433056, -99.147778)
 }
 
-# -------- DISTANCIAS REALES --------
 DISTANCIAS_REALES = {
     ("Polanco_L7","Auditorio_L7"):812,
     ("Auditorio_L7","Constituyentes_L7"):1430,
@@ -122,66 +117,59 @@ DISTANCIAS_REALES = {
     ("Cuauhtemoc_L1","Balderas_L1"):409,
 }
 
-
 # =============================================================
 # A* y búsquedas
 # =============================================================
 
-def haversine(a,b,c,d):
-    R=6371000
-    p1=math.radians(a)
-    p2=math.radians(c)
-    dphi=math.radians(c-a)
-    dl=math.radians(d-b)
-    x=math.sin(dphi/2)**2 + math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
-    return R*(2*math.atan2(math.sqrt(x),math.sqrt(1-x)))
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371000.0  # radio medio de la Tierra en metros
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
-def heuristica(g, a, b):
-    lat1,lon1 = HEURISTICA[a]
-    lat2,lon2 = HEURISTICA[b]
-    return haversine(lat1,lon1,lat2,lon2)/VELOCIDAD_METRO
+def heuristica(graph, node_a, node_b):
+    lat1, lon1 = LAT_LON[node_a]
+    lat2, lon2 = LAT_LON[node_b]
+    dist_metros = haversine(lat1, lon1, lat2, lon2)
+    return dist_metros / VELOCIDAD_METRO
 
-def buscar_ruta(grafo, start, end, esc=False, asc=False):
+def astar_path(grafo, inicio, fin, escalera=False, ascensor=False):
     open_set=[]
-    heapq.heappush(open_set,(0,start))
+    heapq.heappush(open_set,(0,inicio))
 
     g={n:float("inf") for n in grafo.nodes}
-    g[start]=0
+    g[inicio]=0
     f={n:float("inf") for n in grafo.nodes}
-    f[start]=heuristica(grafo,start,end)
+    f[inicio]=heuristica(grafo,inicio,fin)
     came={}
 
     while open_set:
         _,current=heapq.heappop(open_set)
 
-        if current==end:
+        if current==fin:
             ruta=[]
             while current in came:
                 ruta.append(current)
                 current=came[current]
-            ruta.append(start)
+            ruta.append(inicio)
             ruta.reverse()
-            return ruta, g[end]
+            return ruta, g[fin]
 
         for nb in grafo.neighbors(current):
-
-            if grafo.nodes[current]["linea"]!=grafo.nodes[nb]["linea"]:
-                if esc and not(grafo.nodes[current]["escalera"] and grafo.nodes[nb]["escalera"]):
-                    continue
-                if asc and not(grafo.nodes[current]["ascensor"] and grafo.nodes[nb]["ascensor"]):
-                    continue
-
             peso=grafo[current][nb]["weight"]
             ng=g[current]+peso
 
             if ng < g[nb]:
                 g[nb]=ng
                 came[nb]=current
-                f[nb]=ng+heuristica(grafo,nb,end)
+                f[nb]=ng+heuristica(grafo,nb,fin)
                 heapq.heappush(open_set,(f[nb],nb))
 
     return None,0
-
 
 # =============================================================
 # GRAFO
@@ -199,8 +187,9 @@ def crear_grafo():
         return (0, 0)
 
     # ---------------------------------------------------------
-    # 1. DEFINICIÓN DE NODOS
+    # 1. NODOS
     # ---------------------------------------------------------
+
     # Línea 7
     G.add_node("Polanco_L7", pos=P("Polanco"), linea="L7", nombre="Polanco")
     G.add_node("Auditorio_L7", pos=P("Auditorio"), linea="L7", nombre="Auditorio")
@@ -255,30 +244,34 @@ def crear_grafo():
     # ---------------------------------------------------------
     # 2. ARISTAS
     # ---------------------------------------------------------
-    # Aristas
+
     for (a,b),d in DISTANCIAS_REALES.items():
         # Tiempo = (Distancia / Velocidad) + Tiempo de parada en la estación
         tiempo_segundos = (d / VELOCIDAD_METRO) + TIEMPO_PARADA
         G.add_edge(a,b, weight=tiempo_segundos)
 
-    enlaces = [
+    # Tramos de transbordo
+    TRANSBORDOS = [
         ("Tacubaya_L1", "Tacubaya_L7"),
-        ("Tacubaya_L7", "Tacubaya_L9"),
+        ("Tacubaya_L7", "Tacubaya_L9"), 
+        ("Tacubaya_L1", "Tacubaya_L9"),
         ("Mixcoac_L7", "Mixcoac_L12"),
         ("Zapata_L3", "Zapata_L12"),
         ("Centro Medico_L3", "Centro Medico_L9"),
         ("Balderas_L1", "Balderas_L3")
     ]
-    for a, b in enlaces:
-        G.add_edge(a, b, weight=PENALIZACION)
+
+    for origen, destino in TRANSBORDOS:
+        G.add_edge(origen, destino, weight=PENALIZACION)
 
     # ---------------------------------------------------------
-    # 3. ASIGNACIÓN DE SERVICIOS
+    # 3. SERVICIOS
     # ---------------------------------------------------------
+
     servicios_por_nodo = {
         # Línea 1
         "Observatorio_L1":      {"escalera": False, "ascensor": True},
-        "Tacubaya_L1":          {"escalera": True,  "ascensor": False},
+        "Tacubaya_L1":          {"escalera": True,  "ascensor": True},
         "Juanacatlan_L1":       {"escalera": False, "ascensor": False},
         "Chapultepec_L1":       {"escalera": False, "ascensor": False},
         "Sevilla_L1":           {"escalera": True,  "ascensor": True},
@@ -289,13 +282,13 @@ def crear_grafo():
         # Línea 12
         "Mixcoac_L12":          {"escalera": True,  "ascensor": True},
         "Insurgentes Sur_L12":  {"escalera": True,  "ascensor": True},
-        "Hospital 20 de Nov_L12":{"escalera": True, "ascensor": True},
+        "Hospital 20 de Noviembre_L12":{"escalera": True, "ascensor": True},
         "Zapata_L12":           {"escalera": True,  "ascensor": True},
         "Parque de los Venados_L12":{"escalera": True, "ascensor": True},
         "Eje Central_L12":      {"escalera": True,  "ascensor": True},
 
         # Línea 9
-        "Tacubaya_L9":          {"escalera": True,  "ascensor": False},
+        "Tacubaya_L9":          {"escalera": True,  "ascensor": True},
         "Patriotismo_L9":       {"escalera": True,  "ascensor": False},
         "Chilpancingo_L9":      {"escalera": True,  "ascensor": False},
         "Centro Medico_L9":     {"escalera": True,  "ascensor": True},
@@ -306,7 +299,7 @@ def crear_grafo():
         "Mixcoac_L7":           {"escalera": True,  "ascensor": True},
         "San Antonio_L7":       {"escalera": True,  "ascensor": False},
         "San Pedro de los Pinos_L7":{"escalera": True, "ascensor": False},
-        "Tacubaya_L7":          {"escalera": True,  "ascensor": False},
+        "Tacubaya_L7":          {"escalera": True,  "ascensor": True},
         "Constituyentes_L7":    {"escalera": True,  "ascensor": False},
         "Auditorio_L7":         {"escalera": True,  "ascensor": False},
         "Polanco_L7":           {"escalera": True,  "ascensor": False},
@@ -328,14 +321,12 @@ def crear_grafo():
         "Juarez_L3":            {"escalera": True,  "ascensor": True},
     }
 
-    # Asignar atributos (y poner False por defecto si falta alguno)
     for node in G.nodes:
         datos = servicios_por_nodo.get(node, {"escalera": False, "ascensor": False})
         G.nodes[node]["escalera"] = datos["escalera"]
         G.nodes[node]["ascensor"] = datos["ascensor"]
 
     return G
-
 
 # =============================================================
 # INTERFAZ
@@ -344,7 +335,8 @@ def crear_grafo():
 class AppMetro:
     def __init__(self,root):
         self.root=root
-        self.root.title("Metro CDMX - CustomTkinter")
+        self.root.title("Metro CDMX")
+        self.root.resizable(False, False)
         
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
@@ -352,7 +344,9 @@ class AppMetro:
         self.graph = crear_grafo()
         self.nombres_estaciones = sorted(list({data["nombre"] for _,data in self.graph.nodes(data=True)}))
 
-        # -------- BARRA SUPERIOR PROFESIONAL --------
+        # =========================================================
+        # BARRA SUPERIOR
+        # =========================================================
         self.frame_top = ctk.CTkFrame(root, height=65, fg_color="#F7F7F7", corner_radius=0)
         self.frame_top.pack(side="top", fill="x")
 
@@ -364,7 +358,6 @@ class AppMetro:
         self.row = ctk.CTkFrame(self.card, fg_color="transparent")
         self.row.pack(padx=12, pady=8)
         self.row.pack_anchor = "center"
-
 
         # TÍTULO
         ctk.CTkLabel(self.row, text="Metro CDMX",
@@ -419,19 +412,16 @@ class AppMetro:
 
         self.btn_retroceder.pack(side="left", padx=(10, 0))
 
-        # Estado inicial → invisible pero ocupa espacio
+        # Estado inicial invisible
         self.btn_retroceder.configure(state="disabled", fg_color="transparent", text="")
-
 
         # INFO EN LA BARRA
         self.lbl = ctk.CTkLabel(self.row, text="", text_color="#333")
         self.lbl.pack(side="left", padx=10)
 
-
         # =========================================================
         # PANEL DERECHO (MAPA)
         # =========================================================
-
         self.frame_right=tk.Frame(root)
         self.frame_right.pack(side="right", fill="both", expand=True)
 
@@ -440,14 +430,14 @@ class AppMetro:
 
         self.cargar_imagen("Mapa_metro.png")
         
-        # --- CARGAR ÍCONOS DE SERVICIOS (14x14) ---
+        # Iconos de servicios
         try:
-            # 1. Cargar imagen de escalera
+            # Cargar icono de escalera
             img_esc_pil = Image.open("escalera.png")
             img_esc_resized = img_esc_pil.resize((14, 14), Image.LANCZOS)
             self.icon_escalera_tk = ImageTk.PhotoImage(img_esc_resized)
 
-            # 2. Cargar imagen de ascensor
+            # Cargar icono de ascensor
             img_asc_pil = Image.open("ascensor.png")
             img_asc_resized = img_asc_pil.resize((14, 14), Image.LANCZOS)
             self.icon_ascensor_tk = ImageTk.PhotoImage(img_asc_resized)
@@ -488,12 +478,9 @@ class AppMetro:
         )
         self.info_text.pack(padx=10, pady=(0,10))
 
-
         self.ruta=None
         self.nodo_origen_click=None
         self.nodo_destino_click=None
-
-
 
     # ============================================================
     # IMAGEN
@@ -505,11 +492,10 @@ class AppMetro:
     # ============================================================
     # REDIBUJAR
     # ============================================================
-
     def redibujar(self):
         self.canvas.delete("all")
 
-        # 1. LOGICA DE FONDO (BN SOLO SI HAY RUTA)
+        # 1. Fondo (BN si se ha calculado ruta, es decir, si se ha pulsado buscar)
         if self.ruta:
             imagen_a_cargar = "Mapa_metro_BN.png"
         else:
@@ -518,10 +504,7 @@ class AppMetro:
         try:
             self.img_pil = Image.open(imagen_a_cargar)
         except:
-            try:
-                self.img_pil = Image.open("Mapa_metro.png")
-            except:
-                return
+            return
 
         cw = self.canvas.winfo_width()
         ch = self.canvas.winfo_height()
@@ -539,7 +522,7 @@ class AppMetro:
 
         self.canvas.create_image(cw // 2, ch // 2, image=self.tk_img)
 
-        # 2. DIBUJAR ÍCONOS DE SERVICIOS (FILTRANDO DUPLICADOS)
+        # 2. DIBUJAR ICONOS DE SERVICIOS
         mostrar_esc = self.var_escal.get() and self.icon_escalera_tk
         mostrar_asc = self.var_ascen.get() and self.icon_ascensor_tk
 
@@ -690,6 +673,19 @@ class AppMetro:
             if linea_a != linea_b:
                 contador += 1
         return contador
+    
+    def es_transbordo_inicial(self, ruta):
+        if len(ruta) < 2:
+            return False  # No hay suficientes nodos para formar un transbordo
+        
+        primer_nodo = ruta[0]
+        segundo_nodo = ruta[1]
+        
+        linea_primer = self.graph.nodes[primer_nodo]["linea"]
+        linea_segundo = self.graph.nodes[segundo_nodo]["linea"]
+        
+        # Si las líneas son diferentes, es un transbordo
+        return linea_primer != linea_segundo
 
     def calcular(self):
         o = self.cb_origen.get()
@@ -701,8 +697,27 @@ class AppMetro:
 
         so = self.get_node_id(o)
         sd = self.get_node_id(d)
+        
+        if so is None or sd is None:
+            messagebox.showwarning("Error", "No se encontraron las estaciones en el grafo.")
+            return
 
-        ruta, tiempo = buscar_ruta(self.graph, so, sd,
+        # VALIDACION SOLO EN ORIGEN Y DESTINO
+        if self.var_escal.get() and not self.graph.nodes[so].get("escalera", False):
+            messagebox.showwarning("Accesibilidad", "La estación de origen no dispone de escaleras.")
+            return
+        if self.var_ascen.get() and not self.graph.nodes[so].get("ascensor", False):
+            messagebox.showwarning("Accesibilidad", "La estación de origen no dispone de ascensor.")
+            return
+
+        if self.var_escal.get() and not self.graph.nodes[sd].get("escalera", False):
+            messagebox.showwarning("Accesibilidad", "La estación de destino no dispone de escaleras.")
+            return
+        if self.var_ascen.get() and not self.graph.nodes[sd].get("ascensor", False):
+            messagebox.showwarning("Accesibilidad", "La estación de destino no dispone de ascensor.")
+            return
+
+        ruta, tiempo = astar_path(self.graph, so, sd,
                                    self.var_escal.get(),
                                    self.var_ascen.get())
 
@@ -717,6 +732,8 @@ class AppMetro:
         # Restamos los transbordos y el nodo inicial para tener el n° de estaciones viajadas real
         num_estaciones = len(ruta) - 1 - num_transbordos
         tiempo_minutos = math.ceil(tiempo / 60)
+        if self.es_transbordo_inicial(ruta): 
+            num_transbordos-=1
 
         self.info_text.configure(
             text=f"Tiempo: {tiempo_minutos} min\n"

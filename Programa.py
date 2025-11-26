@@ -5,220 +5,292 @@ import networkx as nx
 import math
 import heapq
 
+# ============================================================================
+# 0. DATOS Y METODOS AUXILIARES
+# ============================================================================
+
+# Penalizacion de los transbordos
+PENALIZACION = 5 * 60    # 5 minutos
+TIEMPO_PARADA = 20       # segundos
+
 # Velocidad media del metro: 36 km/h = 10 m/s
 VELOCIDAD_METRO = 10.0  # m/s
 
-# ========================== #
-# 1. CONFIGURACIÓN DEL GRAFO #
-# ========================== #
+# Latitudes y altitudes obtenidos de wikipedia, es la h(n)
+HEURISTICA = {
+    # Línea 1 (L1)
+    "Observatorio_L1": (19.398333, -99.200278),
+    "Tacubaya_L1": (19.403333, -99.187222),
+    "Juanacatlan_L1": (19.412778, -99.182222),
+    "Chapultepec_L1": (19.420833, -99.176389),
+    "Sevilla_L1": (19.421944, -99.170556),
+    "Insurgentes_L1": (19.423333, -99.163056),
+    "Cuauhtemoc_L1": (19.425833, -99.154722),
+    "Balderas_L1": (19.427500, -99.149167),
+    
+    # Línea 12 (L12)
+    "Mixcoac_L12": (19.375833, -99.187500),
+    "Insurgentes Sur_L12": (19.373611, -99.178889),
+    "Hospital 20 de Nov_L12": (19.371944, -99.171111),
+    "Zapata_L12": (19.370833, -99.165000),
+    "Parque de los Venados_L12": (19.370833, -99.158611),
+    "Eje Central_L12": (19.361389, -99.151389),
+    
+    # Línea 9 (L9)
+    "Tacubaya_L9": (19.403333, -99.187222),
+    "Patriotismo_L9": (19.406111, -99.178889),
+    "Chilpancingo_L9": (19.405833, -99.168611),
+    "Centro Medico_L9": (19.406667, -99.155833),
+    "Lazaro Cardenas_L9": (19.406944, -99.145000),
+    
+    # Línea 7 (L7)
+    "Barranca del Muerto_L7": (19.360556, -99.190278),
+    "Mixcoac_L7": (19.375833, -99.187500),
+    "San Antonio_L7": (19.384722, -99.186389),
+    "San Pedro de los Pinos_L7": (19.391389, -99.186111),
+    "Tacubaya_L7": (19.403333, -99.187222),
+    "Constituyentes_L7": (19.411944, -99.191389),
+    "Auditorio_L7": (19.425556, -99.191944),
+    "Polanco_L7": (19.433611, -99.191111),
+    
+    # Línea 3 (L3)
+    "Universidad_L3": (19.324444, -99.173889),
+    "Copilco_L3": (19.335833, -99.176667),
+    "M.A. de Quevedo_L3": (19.346389, -99.181111),
+    "Viveros_L3": (19.353611, -99.176111),
+    "Coyoacan_L3": (19.361389, -99.170833),
+    "Zapata_L3": (19.370833, -99.165000),
+    "Division del Norte_L3": (19.380000, -99.158889),
+    "Eugenia_L3": (19.385556, -99.157500),
+    "Etiopia_L3": (19.395556, -99.156389),
+    "Centro Medico_L3": (19.406667, -99.155833),
+    "Hospital General_L3": (19.413611, -99.153889),
+    "Ninos Heroes_L3": (19.419444, -99.150556),
+    "Balderas_L3": (19.427500, -99.149167),
+    "Juarez_L3": (19.433056, -99.147778)
+}
+
+# Distancias reales entre estaciones (una y la siguiente) en metros, es la g(n)
+DISTANCIAS_REALES = {
+    # LINEA 1
+    ("Observatorio_L1", "Tacubaya_L1"): 1262,
+    ("Tacubaya_L1", "Juanacatlan_L1"): 1158,
+    ("Juanacatlan_L1", "Chapultepec_L1"): 973,
+    ("Chapultepec_L1", "Sevilla_L1"): 501,
+    ("Sevilla_L1", "Insurgentes_L1"): 645,
+    ("Insurgentes_L1", "Cuauhtemoc_L1"): 793,
+    ("Cuauhtemoc_L1", "Balderas_L1"): 409,
+
+    # LINEA 12
+    ("Mixcoac_L12", "Insurgentes Sur_L12"): 651,
+    ("Insurgentes Sur_L12", "Hospital 20 de Nov_L12"): 725,
+    ("Hospital 20 de Nov_L12", "Zapata_L12"): 450,
+    ("Zapata_L12", "Parque de los Venados_L12"): 563,
+    ("Parque de los Venados_L12", "Eje Central_L12"): 1280,
+
+    # LINEA 9
+    ("Tacubaya_L9", "Patriotismo_L9"): 1133,
+    ("Patriotismo_L9", "Chilpancingo_L9"): 955,
+    ("Chilpancingo_L9", "Centro Medico_L9"): 1152,
+    ("Centro Medico_L9", "Lazaro Cardenas_L9"): 1059,
+
+    # LINEA 7
+    ("Barranca del Muerto_L7", "Mixcoac_L7"): 1476,
+    ("Mixcoac_L7", "San Antonio_L7"): 788,
+    ("San Antonio_L7", "San Pedro de los Pinos_L7"): 606,
+    ("San Pedro de los Pinos_L7", "Tacubaya_L7"): 1084,
+    ("Tacubaya_L7", "Constituyentes_L7"): 1005,
+    ("Constituyentes_L7", "Auditorio_L7"): 1430,
+    ("Auditorio_L7", "Polanco_L7"): 812,
+
+    # LINEA 3
+    ("Universidad_L3", "Copilco_L3"): 1306,
+    ("Copilco_L3", "M.A. de Quevedo_L3"): 1295,
+    ("M.A. de Quevedo_L3", "Viveros_L3"): 824,
+    ("Viveros_L3", "Coyoacan_L3"): 908,
+    ("Coyoacan_L3", "Zapata_L3"): 1153,
+    ("Zapata_L3", "Division del Norte_L3"): 794,
+    ("Division del Norte_L3", "Eugenia_L3"): 715,
+    ("Eugenia_L3", "Etiopia_L3"): 950,
+    ("Etiopia_L3", "Centro Medico_L3"): 1119,
+    ("Centro Medico_L3", "Hospital General_L3"): 653,
+    ("Hospital General_L3", "Ninos Heroes_L3"): 559,
+    ("Ninos Heroes_L3", "Balderas_L3"): 665,
+    ("Balderas_L3", "Juarez_L3"): 659
+}
+
+# Metodos auxiliares
+def get_dist(a, b):
+    """Devuelve la distancia en metros entre dos estaciones consecutivas."""
+    if (a, b) in DISTANCIAS_REALES:
+        return DISTANCIAS_REALES[(a, b)]
+    if (b, a) in DISTANCIAS_REALES:
+        return DISTANCIAS_REALES[(b, a)]
+    raise KeyError(f"No se encontró distancia para el tramo {a} - {b}")
+
+def add_tramo(metro, a, b):
+    """Añade un tramo con peso = tiempo en segundos (distancia / velocidad)."""
+    dist_m = get_dist(a, b)
+    tiempo_seg = dist_m / VELOCIDAD_METRO
+    metro.add_edge(a, b, weight=tiempo_seg + TIEMPO_PARADA)
+
+# Tramos de transbordo
+TRANSBORDOS = [
+    ("Tacubaya_L1", "Tacubaya_L7"),
+    ("Tacubaya_L7", "Tacubaya_L9"), 
+    ("Tacubaya_L1", "Tacubaya_L9"),
+    ("Mixcoac_L7", "Mixcoac_L12"),
+    ("Zapata_L3", "Zapata_L12"),
+    ("Centro Medico_L3", "Centro Medico_L9"),
+    ("Balderas_L1", "Balderas_L3")
+]
+
+def añadir_aristas_transbordo(metro):
+    for origen, destino in TRANSBORDOS:
+        metro.add_edge(origen, destino, weight=PENALIZACION)
+
+def contar_transbordos(ruta):
+    """
+    Cuenta la cantidad de transbordos en una ruta usando la lista TRANSBORDOS
+    """
+    if not ruta or len(ruta) < 2:
+        return 0
+    
+    transbordos = 0
+    
+    for i in range(len(ruta) - 1):
+        estacion_actual = ruta[i]
+        estacion_siguiente = ruta[i + 1]
+        
+        # Verificar si este par es un transbordo definido
+        for origen, destino in TRANSBORDOS:
+            if (estacion_actual == origen and estacion_siguiente == destino) or \
+               (estacion_actual == destino and estacion_siguiente == origen):
+                transbordos += 1
+                break  # Salir del bucle interno una vez encontrado
+    
+    return transbordos
+
+# ============================================================================
+# 1. CONFIGURACION DEL GRAFO
+# ============================================================================
 
 def crear_grafo_metro():
     metro = nx.Graph()
     
-    # Coordenadas aproximadas basadas en la imagen "Mapa_metro.jpg"
-    X_L7 = 190        # Eje vertical izquierdo (Línea Naranja)
-    X_L3 = 600        # Eje vertical derecho (Línea Verde Oliva)
-    Y_L9 = 290        # Eje horizontal medio (Línea Marrón) - Tacubaya a Centro Medico
-    Y_L12 = 550       # Eje horizontal inferior (Línea Dorada) - Mixcoac a Zapata
+    añadir_nodos(metro)
+    añadir_aristas(metro)
+    añadir_servicios(metro)
     
-    # ----------------------------------------------------------
-    # LÍNEA 7 (Naranja) - Vertical Izquierda
-    # ----------------------------------------------------------
+    return metro
+
+def añadir_nodos(metro):
+    # Coordenadas aproximadas
+    X_L7 = 190
+    X_L3 = 600
+    Y_L9 = 290
+    Y_L12 = 550
+        
+    # LINEA 7 
     metro.add_node("Polanco_L7",              pos=(X_L7, 22),  linea="L7", nombre="Polanco")
     metro.add_node("Auditorio_L7",            pos=(X_L7, 115), linea="L7", nombre="Auditorio")
     metro.add_node("Constituyentes_L7",       pos=(X_L7, 200), linea="L7", nombre="Constituyentes")
-    metro.add_node("Tacubaya_L7",             pos=(X_L7, Y_L9), linea="L7", nombre="Tacubaya") # HUB
+    metro.add_node("Tacubaya_L7",             pos=(X_L7, Y_L9), linea="L7", nombre="Tacubaya")
     metro.add_node("San Pedro de los Pinos_L7", pos=(X_L7, 400), linea="L7", nombre="San Pedro de los Pinos")
     metro.add_node("San Antonio_L7",          pos=(X_L7, 470), linea="L7", nombre="San Antonio")
-    metro.add_node("Mixcoac_L7",              pos=(X_L7, Y_L12), linea="L7", nombre="Mixcoac") # HUB
+    metro.add_node("Mixcoac_L7",              pos=(X_L7, Y_L12), linea="L7", nombre="Mixcoac")
     metro.add_node("Barranca del Muerto_L7",  pos=(X_L7, 630), linea="L7", nombre="Barranca del Muerto")
 
-    # ----------------------------------------------------------
-    # LÍNEA 3 (Verde Oliva) - Vertical Derecha
-    # ----------------------------------------------------------
+    # LINEA 3
     metro.add_node("Juarez_L3",              pos=(X_L3, 50),  linea="L3", nombre="Juarez")
-    metro.add_node("Balderas_L3",            pos=(X_L3, 110), linea="L3", nombre="Balderas") # HUB
+    metro.add_node("Balderas_L3",            pos=(X_L3, 110), linea="L3", nombre="Balderas")
     metro.add_node("Ninos Heroes_L3",        pos=(X_L3, 180), linea="L3", nombre="Niños Heroes")
     metro.add_node("Hospital General_L3",    pos=(X_L3, 250), linea="L3", nombre="Hospital General")
-    metro.add_node("Centro Medico_L3",       pos=(X_L3, Y_L9), linea="L3", nombre="Centro Medico") # HUB
+    metro.add_node("Centro Medico_L3",       pos=(X_L3, Y_L9), linea="L3", nombre="Centro Medico")
     metro.add_node("Etiopia_L3",             pos=(X_L3, 380), linea="L3", nombre="Etiopia")
     metro.add_node("Eugenia_L3",             pos=(X_L3, 440), linea="L3", nombre="Eugenia")
     metro.add_node("Division del Norte_L3",  pos=(X_L3, 500), linea="L3", nombre="Division del Norte")
-    metro.add_node("Zapata_L3",              pos=(X_L3, Y_L12), linea="L3", nombre="Zapata") # HUB
+    metro.add_node("Zapata_L3",              pos=(X_L3, Y_L12), linea="L3", nombre="Zapata")
     metro.add_node("Coyoacan_L3",            pos=(X_L3, 600), linea="L3", nombre="Coyoacan")
     metro.add_node("Viveros_L3",             pos=(X_L3, 650), linea="L3", nombre="Viveros")
     metro.add_node("M.A. de Quevedo_L3",     pos=(X_L3, 700), linea="L3", nombre="M.A. de Quevedo")
     metro.add_node("Copilco_L3",             pos=(X_L3, 740), linea="L3", nombre="Copilco")
     metro.add_node("Universidad_L3",         pos=(X_L3, 780), linea="L3", nombre="Universidad")
 
-    # ----------------------------------------------------------
-    # LÍNEA 9 (Marrón) - Horizontal Media
-    # ----------------------------------------------------------
-    metro.add_node("Tacubaya_L9",        pos=(X_L7, Y_L9), linea="L9", nombre="Tacubaya") # HUB
+    # LINEA 9
+    metro.add_node("Tacubaya_L9",        pos=(X_L7, Y_L9), linea="L9", nombre="Tacubaya")
     metro.add_node("Patriotismo_L9",     pos=(320, Y_L9), linea="L9", nombre="Patriotismo")
     metro.add_node("Chilpancingo_L9",    pos=(460, Y_L9), linea="L9", nombre="Chilpancingo")
-    metro.add_node("Centro Medico_L9",   pos=(X_L3, Y_L9), linea="L9", nombre="Centro Medico") # HUB
+    metro.add_node("Centro Medico_L9",   pos=(X_L3, Y_L9), linea="L9", nombre="Centro Medico")
     metro.add_node("Lazaro Cardenas_L9", pos=(700, Y_L9), linea="L9", nombre="Lazaro Cardenas")
 
-    # ----------------------------------------------------------
-    # LÍNEA 12 (Dorada) - Horizontal Inferior
-    # ----------------------------------------------------------
-    metro.add_node("Mixcoac_L12",            pos=(X_L7, Y_L12), linea="L12", nombre="Mixcoac") # HUB
+    # LINEA 12
+    metro.add_node("Mixcoac_L12",            pos=(X_L7, Y_L12), linea="L12", nombre="Mixcoac")
     metro.add_node("Insurgentes Sur_L12",    pos=(320, Y_L12), linea="L12", nombre="Insurgentes Sur")
     metro.add_node("Hospital 20 de Nov_L12", pos=(460, Y_L12), linea="L12", nombre="Hospital 20 de Nov")
-    metro.add_node("Zapata_L12",             pos=(X_L3, Y_L12), linea="L12", nombre="Zapata") # HUB
+    metro.add_node("Zapata_L12",             pos=(X_L3, Y_L12), linea="L12", nombre="Zapata")
     metro.add_node("Parque de los Venados_L12", pos=(700, Y_L12), linea="L12", nombre="Parque de los Venados")
-    metro.add_node("Eje Central_L12",        pos=(740, 620), linea="L12", nombre="Eje Central") # Baja visualmente
+    metro.add_node("Eje Central_L12",        pos=(740, 620), linea="L12", nombre="Eje Central")
 
-    # ----------------------------------------------------------
-    # LÍNEA 1 (Rosa) - Diagonal / Horizontal Superior
-    # ----------------------------------------------------------
-    metro.add_node("Observatorio_L1", pos=(100, 380), linea="L1", nombre="Observatorio")
-    metro.add_node("Tacubaya_L1",     pos=(X_L7, Y_L9), linea="L1", nombre="Tacubaya") # HUB
+    # LINEA 1
+    metro.add_node("Observatorio_L1", pos=(604, 1600), linea="L1", nombre="Observatorio")
+    metro.add_node("Tacubaya_L1",     pos=(X_L7, Y_L9), linea="L1", nombre="Tacubaya")
     metro.add_node("Juanacatlan_L1",  pos=(250, 270), linea="L1", nombre="Juanacatlan")
     metro.add_node("Chapultepec_L1",  pos=(320, 220), linea="L1", nombre="Chapultepec")
     metro.add_node("Sevilla_L1",      pos=(390, 170), linea="L1", nombre="Sevilla")
     metro.add_node("Insurgentes_L1",  pos=(460, 110), linea="L1", nombre="Insurgentes")
     metro.add_node("Cuauhtemoc_L1",   pos=(530, 110), linea="L1", nombre="Cuauhtemoc")
-    metro.add_node("Balderas_L1",     pos=(X_L3, 110), linea="L1", nombre="Balderas") # HUB
+    metro.add_node("Balderas_L1",     pos=(X_L3, 110), linea="L1", nombre="Balderas")
 
-    # ----------------------------------------------------------
-    # DISTANCIAS REALES ENTRE ESTACIONES (m)
-    # La distancia de cada fila es la distancia entre la estación de la fila y la de abajo.
-    # ----------------------------------------------------------
-    distancias_reales = {
-        # LÍNEA 1
-        ("Observatorio_L1", "Tacubaya_L1"): 1262,
-        ("Tacubaya_L1", "Juanacatlan_L1"): 1158,
-        ("Juanacatlan_L1", "Chapultepec_L1"): 973,
-        ("Chapultepec_L1", "Sevilla_L1"): 501,
-        ("Sevilla_L1", "Insurgentes_L1"): 645,
-        ("Insurgentes_L1", "Cuauhtemoc_L1"): 793,
-        ("Cuauhtemoc_L1", "Balderas_L1"): 409,
-
-        # LÍNEA 12
-        ("Mixcoac_L12", "Insurgentes Sur_L12"): 651,
-        ("Insurgentes Sur_L12", "Hospital 20 de Nov_L12"): 725,
-        ("Hospital 20 de Nov_L12", "Zapata_L12"): 450,
-        ("Zapata_L12", "Parque de los Venados_L12"): 563,
-        ("Parque de los Venados_L12", "Eje Central_L12"): 1280,
-
-        # LÍNEA 9
-        ("Tacubaya_L9", "Patriotismo_L9"): 1133,
-        ("Patriotismo_L9", "Chilpancingo_L9"): 955,
-        ("Chilpancingo_L9", "Centro Medico_L9"): 1152,
-        ("Centro Medico_L9", "Lazaro Cardenas_L9"): 1059,
-
-        # LÍNEA 7
-        ("Barranca del Muerto_L7", "Mixcoac_L7"): 1476,
-        ("Mixcoac_L7", "San Antonio_L7"): 788,
-        ("San Antonio_L7", "San Pedro de los Pinos_L7"): 606,
-        ("San Pedro de los Pinos_L7", "Tacubaya_L7"): 1084,
-        ("Tacubaya_L7", "Constituyentes_L7"): 1005,
-        ("Constituyentes_L7", "Auditorio_L7"): 1430,
-        ("Auditorio_L7", "Polanco_L7"): 812,
-
-        # LÍNEA 3
-        ("Universidad_L3", "Copilco_L3"): 1306,
-        ("Copilco_L3", "M.A. de Quevedo_L3"): 1295,
-        ("M.A. de Quevedo_L3", "Viveros_L3"): 824,
-        ("Viveros_L3", "Coyoacan_L3"): 908,
-        ("Coyoacan_L3", "Zapata_L3"): 1153,
-        ("Zapata_L3", "Division del Norte_L3"): 794,
-        ("Division del Norte_L3", "Eugenia_L3"): 715,
-        ("Eugenia_L3", "Etiopia_L3"): 950,
-        ("Etiopia_L3", "Centro Medico_L3"): 1119,
-        ("Centro Medico_L3", "Hospital General_L3"): 653,
-        ("Hospital General_L3", "Ninos Heroes_L3"): 559,
-        ("Ninos Heroes_L3", "Balderas_L3"): 665,
-        ("Balderas_L3", "Juarez_L3"): 659
-    }
-
-    def get_dist(a, b):
-        """Devuelve la distancia en metros entre dos estaciones consecutivas."""
-        if (a, b) in distancias_reales:
-            return distancias_reales[(a, b)]
-        if (b, a) in distancias_reales:
-            return distancias_reales[(b, a)]
-        raise KeyError(f"No se encontró distancia para el tramo {a} - {b}")
-
-    def add_tramo(a, b):
-        """Añade un tramo con peso = tiempo en segundos (distancia / velocidad)."""
-        dist_m = get_dist(a, b)
-        tiempo_seg = dist_m / VELOCIDAD_METRO
-        metro.add_edge(a, b, weight=tiempo_seg)
-
-    # --- CONEXIONES (ARISTAS) ---
-    # L7
-    add_tramo("Polanco_L7", "Auditorio_L7")
-    add_tramo("Auditorio_L7", "Constituyentes_L7")
-    add_tramo("Constituyentes_L7", "Tacubaya_L7")
-    add_tramo("Tacubaya_L7", "San Pedro de los Pinos_L7")
-    add_tramo("San Pedro de los Pinos_L7", "San Antonio_L7")
-    add_tramo("San Antonio_L7", "Mixcoac_L7")
-    add_tramo("Mixcoac_L7", "Barranca del Muerto_L7")
+def añadir_aristas(metro):
+    add_tramo(metro, "Polanco_L7", "Auditorio_L7")
+    add_tramo(metro, "Auditorio_L7", "Constituyentes_L7")
+    add_tramo(metro, "Constituyentes_L7", "Tacubaya_L7")
+    add_tramo(metro, "Tacubaya_L7", "San Pedro de los Pinos_L7")
+    add_tramo(metro, "San Pedro de los Pinos_L7", "San Antonio_L7")
+    add_tramo(metro, "San Antonio_L7", "Mixcoac_L7")
+    add_tramo(metro, "Mixcoac_L7", "Barranca del Muerto_L7")
 
     # L3
-    add_tramo("Juarez_L3", "Balderas_L3")
-    add_tramo("Balderas_L3", "Ninos Heroes_L3")
-    add_tramo("Ninos Heroes_L3", "Hospital General_L3")
-    add_tramo("Hospital General_L3", "Centro Medico_L3")
-    add_tramo("Centro Medico_L3", "Etiopia_L3")
-    add_tramo("Etiopia_L3", "Eugenia_L3")
-    add_tramo("Eugenia_L3", "Division del Norte_L3")
-    add_tramo("Division del Norte_L3", "Zapata_L3")
-    add_tramo("Zapata_L3", "Coyoacan_L3")
-    add_tramo("Coyoacan_L3", "Viveros_L3")
-    add_tramo("Viveros_L3", "M.A. de Quevedo_L3")
-    add_tramo("M.A. de Quevedo_L3", "Copilco_L3")
-    add_tramo("Copilco_L3", "Universidad_L3")
+    add_tramo(metro, "Juarez_L3", "Balderas_L3")
+    add_tramo(metro, "Balderas_L3", "Ninos Heroes_L3")
+    add_tramo(metro, "Ninos Heroes_L3", "Hospital General_L3")
+    add_tramo(metro, "Hospital General_L3", "Centro Medico_L3")
+    add_tramo(metro, "Centro Medico_L3", "Etiopia_L3")
+    add_tramo(metro, "Etiopia_L3", "Eugenia_L3")
+    add_tramo(metro, "Eugenia_L3", "Division del Norte_L3")
+    add_tramo(metro, "Division del Norte_L3", "Zapata_L3")
+    add_tramo(metro, "Zapata_L3", "Coyoacan_L3")
+    add_tramo(metro, "Coyoacan_L3", "Viveros_L3")
+    add_tramo(metro, "Viveros_L3", "M.A. de Quevedo_L3")
+    add_tramo(metro, "M.A. de Quevedo_L3", "Copilco_L3")
+    add_tramo(metro, "Copilco_L3", "Universidad_L3")
 
     # L9
-    add_tramo("Tacubaya_L9", "Patriotismo_L9")
-    add_tramo("Patriotismo_L9", "Chilpancingo_L9")
-    add_tramo("Chilpancingo_L9", "Centro Medico_L9")
-    add_tramo("Centro Medico_L9", "Lazaro Cardenas_L9")
+    add_tramo(metro, "Tacubaya_L9", "Patriotismo_L9")
+    add_tramo(metro, "Patriotismo_L9", "Chilpancingo_L9")
+    add_tramo(metro, "Chilpancingo_L9", "Centro Medico_L9")
+    add_tramo(metro, "Centro Medico_L9", "Lazaro Cardenas_L9")
 
     # L12
-    add_tramo("Mixcoac_L12", "Insurgentes Sur_L12")
-    add_tramo("Insurgentes Sur_L12", "Hospital 20 de Nov_L12")
-    add_tramo("Hospital 20 de Nov_L12", "Zapata_L12")
-    add_tramo("Zapata_L12", "Parque de los Venados_L12")
-    add_tramo("Parque de los Venados_L12", "Eje Central_L12")
+    add_tramo(metro, "Mixcoac_L12", "Insurgentes Sur_L12")
+    add_tramo(metro, "Insurgentes Sur_L12", "Hospital 20 de Nov_L12")
+    add_tramo(metro, "Hospital 20 de Nov_L12", "Zapata_L12")
+    add_tramo(metro, "Zapata_L12", "Parque de los Venados_L12")
+    add_tramo(metro, "Parque de los Venados_L12", "Eje Central_L12")
 
     # L1
-    add_tramo("Observatorio_L1", "Tacubaya_L1")
-    add_tramo("Tacubaya_L1", "Juanacatlan_L1")
-    add_tramo("Juanacatlan_L1", "Chapultepec_L1")
-    add_tramo("Chapultepec_L1", "Sevilla_L1")
-    add_tramo("Sevilla_L1", "Insurgentes_L1")
-    add_tramo("Insurgentes_L1", "Cuauhtemoc_L1")
-    add_tramo("Cuauhtemoc_L1", "Balderas_L1")
-
-    # --- TRANSBORDOS (Penalización de 5 min -> 300 s) ---
-    T_COST_MIN = 5
-    T_COST = T_COST_MIN * 60  # segundos
-
-    # Tacubaya (L1, L7, L9)
-    metro.add_edge("Tacubaya_L1", "Tacubaya_L7", weight=T_COST)
-    metro.add_edge("Tacubaya_L7", "Tacubaya_L9", weight=T_COST)
-    metro.add_edge("Tacubaya_L1", "Tacubaya_L9", weight=T_COST)
+    add_tramo(metro, "Observatorio_L1", "Tacubaya_L1")
+    add_tramo(metro, "Tacubaya_L1", "Juanacatlan_L1")
+    add_tramo(metro, "Juanacatlan_L1", "Chapultepec_L1")
+    add_tramo(metro, "Chapultepec_L1", "Sevilla_L1")
+    add_tramo(metro, "Sevilla_L1", "Insurgentes_L1")
+    add_tramo(metro, "Insurgentes_L1", "Cuauhtemoc_L1")
+    add_tramo(metro, "Cuauhtemoc_L1", "Balderas_L1")
     
-    # Mixcoac (L7, L12)
-    metro.add_edge("Mixcoac_L7", "Mixcoac_L12", weight=T_COST)
+    añadir_aristas_transbordo(metro)
     
-    # Zapata (L3, L12)
-    metro.add_edge("Zapata_L3", "Zapata_L12", weight=T_COST)
-    
-    # Centro Medico (L3, L9)
-    metro.add_edge("Centro Medico_L3", "Centro Medico_L9", weight=T_COST)
-    
-    # Balderas (L1, L3)
-    metro.add_edge("Balderas_L1", "Balderas_L3", weight=T_COST)
-
-    # -----------------------------
-    # Servicios de accesibilidad
-    # -----------------------------
+def añadir_servicios(metro):
     servicios_por_nodo = {
         # Línea 1
         "Observatorio_L1":      {"escalera": False, "ascensor": True},
@@ -277,19 +349,33 @@ def crear_grafo_metro():
         serv = servicios_por_nodo.get(node, {"escalera": False, "ascensor": False})
         metro.nodes[node]["escalera"] = serv["escalera"]
         metro.nodes[node]["ascensor"] = serv["ascensor"]
-
-    return metro
-
+        
 # ============================================================================
 # 2. ALGORITMO A* (Heurística y Búsqueda)
 # ============================================================================
 
 def heuristica(graph, node_a, node_b):
-    x1, y1 = graph.nodes[node_a]['pos']
-    x2, y2 = graph.nodes[node_b]['pos']
-    dist_px = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-    # Aproximamos 1 píxel ~ 1 metro; devolvemos tiempo estimado en segundos
-    return dist_px / VELOCIDAD_METRO
+    """
+    Heurística que usa distancias reales (Haversine sobre lat/lon).
+    Devuelve tiempo estimado en segundos (distancia_m / VELOCIDAD_METRO).
+    """
+    lat1, lon1 = HEURISTICA[node_a]
+    lat2, lon2 = HEURISTICA[node_b]
+    dist_metros = haversine(lat1, lon1, lat2, lon2)
+
+    return dist_metros / VELOCIDAD_METRO
+
+def haversine(lat1, lon1, lat2, lon2):
+    """Devuelve la distancia entre dos (lat,lon) en metros usando la fórmula de Haversine."""
+    R = 6371000.0  # radio medio de la Tierra en metros
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    return R * c
 
 def buscar_ruta_a_estrella(graph, start_node, end_node,
                            require_escalera=False, require_ascensor=False):
@@ -339,15 +425,15 @@ def buscar_ruta_a_estrella(graph, start_node, end_node,
     return None, 0.0
 
 # ============================================================================
-# 3. INTERFAZ GRÁFICA (Tkinter)
+# 3. INTERFAZ GRAFICA
 # ============================================================================
 
 class AppMetro:
     def __init__(self, root):
         self.root = root
-        self.root.title("Metro CDMX - Ruta Óptima A*")
+        self.root.title("Metro CDMX")
         self.root.geometry("1000x850")
-        self.root.resizable(True, True)
+        self.root.resizable(False, False)
         
         self.metro_graph = crear_grafo_metro()
         self.nombres_estaciones = sorted(list(set(
@@ -358,7 +444,7 @@ class AppMetro:
         self.last_route_nodes = []
 
         # Panel Izquierdo (Controles)
-        self.frame_izq = tk.Frame(root, width=250, bg="#f5f5f5", padx=15, pady=15)
+        self.frame_izq = tk.Frame(root, width=500, bg="#f5f5f5", padx=15, pady=15)
         self.frame_izq.pack(side="left", fill="y")
         
         # Panel Derecho (Mapa)
@@ -436,13 +522,15 @@ class AppMetro:
             )
 
     def cargar_imagen(self):
-        try:
-            nombre_imagen = "Mapa_metro.jpg"
+        try: 
+            nombre_imagen = "Mapa_metro.png"
             imagen_pil = Image.open(nombre_imagen)
-            self.ancho_mapa = 750
-            self.alto_mapa = 800
-            imagen_pil = imagen_pil.resize((self.ancho_mapa, self.alto_mapa),
-                                           Image.Resampling.LANCZOS)
+            
+            scale_factor = 0.24          # Escala
+            w, h = imagen_pil.size      # Tamaño original
+            new_size = (int(w * scale_factor), int(h * scale_factor))
+            imagen_pil = imagen_pil.resize(new_size, Image.LANCZOS)    # Redimensionar
+
             self.mapa_img = ImageTk.PhotoImage(imagen_pil)
             self.canvas.create_image(0, 0, anchor="nw", image=self.mapa_img)
             self.canvas.config(scrollregion=self.canvas.bbox("all"))
@@ -483,8 +571,8 @@ class AppMetro:
             self.combo_destino.set("")
 
         self.lbl_resultado.config(
-            text=f"Estación seleccionada: {nombre_estacion}\n"
-                 f"Escaleras: {esc}  Ascensor: {asc}"
+            text=f"Estación seleccionada: \n\t{nombre_estacion}\n"
+                 f"Escaleras: \n\t{esc}  \nAscensor: {asc}"
         )
 
     def calcular_ruta(self):
@@ -529,8 +617,9 @@ class AppMetro:
         if ruta:
             # Convertir de segundos a minutos y redondear hacia arriba
             tiempo_min = math.ceil(tiempo_seg / 60.0)
+            transbordos = contar_transbordos(ruta)
             self.lbl_resultado.config(
-                text=f"Tiempo aprox: {tiempo_min} min\nEstaciones: {len(ruta)}"
+                text=f"Tiempo aprox: {tiempo_min} min\nEstaciones: {len(ruta)-1-transbordos}\nTransbordos: {transbordos}"
             )
             self.dibujar_ruta(ruta)
         else:
