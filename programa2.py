@@ -10,20 +10,9 @@ import json
 # =============================================================
 # CONSTANTES
 # =============================================================
-
 PENALIZACION = 300  # Penalización por transbordo (5 minutos)
 TIEMPO_PARADA = 20  # Tiempo de parada en cada estación
 VELOCIDAD_METRO = 10.0  # m/s
-
-# Offset de los iconos
-# Valores negativos: Izquierda/Arriba. Valores positivos: Derecha/Abajo.
-AJUSTES_ICONOS = {
-    "Tacubaya_L1": (-25, -10),
-    "Balderas_L1": (10, 20),
-    "Observatorio_L1": (0, -25),
-    "Tacubaya_L9": (0, 25),
-    "Centro Medico_L9": (0, -20),
-}
 
 # Latitud y longitud
 LAT_LON = {
@@ -120,7 +109,6 @@ DISTANCIAS_REALES = {
 # =============================================================
 # A* y búsquedas
 # =============================================================
-
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371000.0  # radio medio de la Tierra en metros
     phi1 = math.radians(lat1)
@@ -137,44 +125,52 @@ def heuristica(graph, node_a, node_b):
     dist_metros = haversine(lat1, lon1, lat2, lon2)
     return dist_metros / VELOCIDAD_METRO
 
-def astar_path(grafo, inicio, fin, escalera=False, ascensor=False):
-    open_set=[]
-    heapq.heappush(open_set,(0,inicio))
+def astar_path(grafo, inicio, fin):
+    heur_cache = {n: heuristica(grafo, n, fin) for n in grafo.nodes}
 
-    g={n:float("inf") for n in grafo.nodes}
-    g[inicio]=0
-    f={n:float("inf") for n in grafo.nodes}
-    f[inicio]=heuristica(grafo,inicio,fin)
-    came={}
+    open_set = []
+    g = {n: float("inf") for n in grafo.nodes}
+    f = {n: float("inf") for n in grafo.nodes}
+    g[inicio] = 0.0
+    f[inicio] = heur_cache[inicio]
+    heapq.heappush(open_set, (f[inicio], inicio))
+
+    came = {}
+    closed = set()
+    adj = grafo.adj
 
     while open_set:
-        _,current=heapq.heappop(open_set)
+        current_f, current = heapq.heappop(open_set)
+        if current_f > f[current]:
+            continue
 
-        if current==fin:
-            ruta=[]
+        if current == fin:
+            ruta = []
             while current in came:
                 ruta.append(current)
-                current=came[current]
+                current = came[current]
             ruta.append(inicio)
             ruta.reverse()
             return ruta, g[fin]
 
-        for nb in grafo.neighbors(current):
-            peso=grafo[current][nb]["weight"]
-            ng=g[current]+peso
+        if current in closed:
+            continue
+        closed.add(current)
 
+        for nb, attr in adj[current].items():
+            peso = attr.get("weight", 0.0)
+            ng = g[current] + peso
             if ng < g[nb]:
-                g[nb]=ng
-                came[nb]=current
-                f[nb]=ng+heuristica(grafo,nb,fin)
-                heapq.heappush(open_set,(f[nb],nb))
+                g[nb] = ng
+                came[nb] = current
+                f[nb] = ng + heur_cache[nb]
+                heapq.heappush(open_set, (f[nb], nb))
 
-    return None,0
+    return None, 0
 
 # =============================================================
 # GRAFO
 # =============================================================
-
 def crear_grafo():
     G = nx.Graph()
 
@@ -282,7 +278,7 @@ def crear_grafo():
         # Línea 12
         "Mixcoac_L12":          {"escalera": True,  "ascensor": True},
         "Insurgentes Sur_L12":  {"escalera": True,  "ascensor": True},
-        "Hospital 20 de Noviembre_L12":{"escalera": True, "ascensor": True},
+        "Hospital 20 de Nov_L12":{"escalera": True, "ascensor": True},
         "Zapata_L12":           {"escalera": True,  "ascensor": True},
         "Parque de los Venados_L12":{"escalera": True, "ascensor": True},
         "Eje Central_L12":      {"escalera": True,  "ascensor": True},
@@ -331,7 +327,6 @@ def crear_grafo():
 # =============================================================
 # INTERFAZ
 # =============================================================
-
 class AppMetro:
     def __init__(self,root):
         self.root=root
@@ -379,15 +374,15 @@ class AppMetro:
         self.cb_destino.pack(side="left", padx=10)
 
         # CHECKBOXES
-        self.var_escal = ctk.BooleanVar()
-        self.var_ascen = ctk.BooleanVar()
+        self.var_escalera = ctk.BooleanVar()
+        self.var_ascensor = ctk.BooleanVar()
 
         ctk.CTkCheckBox(self.row, text="Escaleras",
-                        variable=self.var_escal,
+                        variable=self.var_escalera,
                         command=self.redibujar).pack(side="left", padx=5)
 
         ctk.CTkCheckBox(self.row, text="Ascensor",
-                        variable=self.var_ascen,
+                        variable=self.var_ascensor,
                         command=self.redibujar).pack(side="left", padx=5)
 
         # BOTÓN BUSCAR
@@ -509,9 +504,6 @@ class AppMetro:
         cw = self.canvas.winfo_width()
         ch = self.canvas.winfo_height()
 
-        if cw < 10 or ch < 10:
-            return
-
         self.scale = min(cw / self.orig_w, ch / self.orig_h)
         nw, nh = int(self.orig_w * self.scale), int(self.orig_h * self.scale)
         self.ox = (cw - nw) // 2
@@ -522,48 +514,38 @@ class AppMetro:
 
         self.canvas.create_image(cw // 2, ch // 2, image=self.tk_img)
 
-        # 2. DIBUJAR ICONOS DE SERVICIOS
-        mostrar_esc = self.var_escal.get() and self.icon_escalera_tk
-        mostrar_asc = self.var_ascen.get() and self.icon_ascensor_tk
+        # 2. Iconos de servicios
+        mostrar_escalera = self.var_escalera.get() and self.icon_escalera_tk
+        mostrar_ascensor = self.var_ascensor.get() and self.icon_ascensor_tk
 
-        # Conjunto para recordar qué nombres de estación ya hemos procesado visualmente
+        # Conjunto para recordar qué nombres de estación ya se ha procesado
         estaciones_dibujadas = set()
 
-        if mostrar_esc or mostrar_asc:
+        if mostrar_escalera or mostrar_ascensor:
             # Ordenamos para asegurar consistencia al dibujar
             for n, data in sorted(self.graph.nodes(data=True)):
-                nombre_real = data["nombre"] # Ejemplo: "Tacubaya"
+                nombre_real = data["nombre"]
 
-                # Si ya dibujamos iconos para "Tacubaya", saltamos las otras versiones (L1, L7, etc.)
+                # Si ya se ha dibujado iconos para una estación se salta las variantes (L1, L7, etc.)
                 if nombre_real in estaciones_dibujadas:
                     continue
 
-                tiene_esc = data.get("escalera", False)
-                tiene_asc = data.get("ascensor", False)
+                tiene_escalera = data.get("escalera", False)
+                tiene_ascensor = data.get("ascensor", False)
 
-                if not (mostrar_esc and tiene_esc) and not (mostrar_asc and tiene_asc):
+                if not (mostrar_escalera and tiene_escalera) and not (mostrar_ascensor and tiene_ascensor):
                     continue
 
-                # Marcamos esta estación como "ya dibujada"
+                # Se marca la estación como "ya dibujada"
                 estaciones_dibujadas.add(nombre_real)
 
                 x, y = data["pos"]
                 X, Y = self.convertir(x, y)
-
-                # --- LÓGICA DE POSICIONAMIENTO CON AJUSTE MANUAL ---
-                off_x = -15
-                off_y = -15
-                
-                # Buscamos si hay ajuste para el nodo específico (ej. Tacubaya_L1) 
-                if n in AJUSTES_ICONOS:
-                    off_x, off_y = AJUSTES_ICONOS[n]
-                
-                base_icon_x = X + off_x
-                base_icon_y = Y + off_y
+                base_icon_x = X - 15
+                base_icon_y = Y - 15
                 
                 offset_incremental = 0 
-
-                if mostrar_esc and tiene_esc:
+                if mostrar_escalera and tiene_escalera:
                     self.canvas.create_image(
                         base_icon_x + offset_incremental, 
                         base_icon_y,
@@ -572,7 +554,7 @@ class AppMetro:
                     )
                     offset_incremental += 20 
 
-                if mostrar_asc and tiene_asc:
+                if mostrar_ascensor and tiene_ascensor:
                     self.canvas.create_image(
                         base_icon_x + offset_incremental, 
                         base_icon_y,
@@ -580,7 +562,7 @@ class AppMetro:
                         anchor="center"
                     )
 
-        # 3. ZONAS CLICABLES
+        # 3. Zonas clicables
         self.node_items = {}
         for node, data in self.graph.nodes(data=True):
             x, y = data["pos"]
@@ -590,7 +572,7 @@ class AppMetro:
             self.node_items[node] = item
             self.canvas.tag_bind(item, "<Button-1>", lambda e, n=node: self.on_node_click(n))
 
-        # 4. MARCADORES DE SELECCIÓN
+        # 4. Marcadores de selección
         if self.nodo_origen_click:
             x, y = self.graph.nodes[self.nodo_origen_click]["pos"]
             X, Y = self.convertir(x, y)
@@ -601,7 +583,7 @@ class AppMetro:
             X, Y = self.convertir(x, y)
             self.canvas.create_oval(X - 14, Y - 14, X + 14, Y + 14, outline="red", width=6)
 
-        # 5. RUTA
+        # 5. Ruta
         if self.ruta:
             self.dibujar_ruta()
 
@@ -611,9 +593,8 @@ class AppMetro:
     # ============================================================
     # CLIC
     # ============================================================
-
     def on_node_click(self,node):
-        nombre=self.graph.nodes[node]["nombre"]
+        nombre = self.graph.nodes[node]["nombre"]
 
         if self.nodo_origen_click is None:
             self.nodo_origen_click=node
@@ -637,7 +618,6 @@ class AppMetro:
     # ============================================================
     # RETROCEDER
     # ============================================================
-
     def retroceder(self):
         self.ruta=None
         self.nodo_origen_click=None
@@ -648,11 +628,9 @@ class AppMetro:
         self.redibujar()
         self.btn_retroceder.configure(state="disabled", fg_color="transparent", text="")
 
-
     # ============================================================
     # CALCULAR RUTA
     # ============================================================
-
     def get_node_id(self, nombre):
         for n,data in self.graph.nodes(data=True):
             if data["nombre"]==nombre:
@@ -660,7 +638,6 @@ class AppMetro:
         return None
     
     def contar_transbordos(self, ruta):
-        """Cuenta cuántas veces cambia de línea en la ruta."""
         contador = 0
         for i in range(len(ruta) - 1):
             nodo_actual = ruta[i]
@@ -703,23 +680,21 @@ class AppMetro:
             return
 
         # VALIDACION SOLO EN ORIGEN Y DESTINO
-        if self.var_escal.get() and not self.graph.nodes[so].get("escalera", False):
+        if self.var_escalera.get() and not self.graph.nodes[so].get("escalera", False):
             messagebox.showwarning("Accesibilidad", "La estación de origen no dispone de escaleras.")
             return
-        if self.var_ascen.get() and not self.graph.nodes[so].get("ascensor", False):
+        if self.var_ascensor.get() and not self.graph.nodes[so].get("ascensor", False):
             messagebox.showwarning("Accesibilidad", "La estación de origen no dispone de ascensor.")
             return
 
-        if self.var_escal.get() and not self.graph.nodes[sd].get("escalera", False):
+        if self.var_escalera.get() and not self.graph.nodes[sd].get("escalera", False):
             messagebox.showwarning("Accesibilidad", "La estación de destino no dispone de escaleras.")
             return
-        if self.var_ascen.get() and not self.graph.nodes[sd].get("ascensor", False):
+        if self.var_ascensor.get() and not self.graph.nodes[sd].get("ascensor", False):
             messagebox.showwarning("Accesibilidad", "La estación de destino no dispone de ascensor.")
             return
 
-        ruta, tiempo = astar_path(self.graph, so, sd,
-                                   self.var_escal.get(),
-                                   self.var_ascen.get())
+        ruta, tiempo = astar_path(self.graph, so, sd)
 
         if not ruta:
             messagebox.showerror("Sin ruta", "No hay ruta posible.")
@@ -733,7 +708,7 @@ class AppMetro:
         num_estaciones = len(ruta) - 1 - num_transbordos
         tiempo_minutos = math.ceil(tiempo / 60)
         if self.es_transbordo_inicial(ruta): 
-            num_transbordos-=1
+            num_transbordos -= 1
 
         self.info_text.configure(
             text=f"Tiempo: {tiempo_minutos} min\n"
@@ -747,10 +722,8 @@ class AppMetro:
     # ============================================================
     # DIBUJAR RUTA
     # ============================================================
-
     def dibujar_ruta(self):
-        # 1. DIBUJAR LÍNEAS (CONEXIONES)
-        # Dibujamos las líneas primero para que queden DEBAJO de los círculos
+        # 1. LÍNEAS
         for a, b in zip(self.ruta, self.ruta[1:]):
             x1, y1 = self.graph.nodes[a]["pos"]
             x2, y2 = self.graph.nodes[b]["pos"]
@@ -759,22 +732,21 @@ class AppMetro:
             # Línea cian gruesa
             self.canvas.create_line(X1, Y1, X2, Y2, fill="cyan", width=6)
 
-        # 2. DIBUJAR NODOS INTERMEDIOS
-        # Recorremos la ruta desde el índice 1 hasta el penúltimo (slice [1:-1])
+        # 2. NODOS INTERMEDIOS
         for estacion in self.ruta[1:-1]:
             x, y = self.graph.nodes[estacion]["pos"]
             X, Y = self.convertir(x, y)
             
-            # Dibujamos un círculo blanco pequeño (4 pixeles de radio)
+            # Círculo blanco pequeño (4 pixeles de radio)
             self.canvas.create_oval(X-4, Y-4, X+4, Y+4, fill="white", outline="black", width=1)
 
-        # 3. DIBUJAR INICIO (Verde)
+        # 3. INICIO (Verde)
         a = self.ruta[0]
         x, y = self.graph.nodes[a]["pos"]
         X, Y = self.convertir(x, y)
         self.canvas.create_oval(X-10, Y-10, X+10, Y+10, fill="#39FF14", outline="black", width=3)
 
-        # 4. DIBUJAR FIN (Rojo)
+        # 4. FIN (Rojo)
         b = self.ruta[-1]
         x, y = self.graph.nodes[b]["pos"]
         X, Y = self.convertir(x, y)
