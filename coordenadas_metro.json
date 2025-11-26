@@ -1,0 +1,52 @@
+{
+    "Observatorio": [604, 1600],
+    "Juanacatlan": [1034, 1161],
+    "Chapultepec": [1224, 970],
+    "Sevilla": [1439, 756],
+    "Insurgentes": [1658, 585],
+    "Cuauhtemoc": [1892, 590],
+
+
+    "Polanco": [818, 271],
+    "Auditorio": [818, 653],
+    "Constituyentes": [818, 1019],
+    "Tacubaya": [822, 1369],
+    "San Pedro de los Pinos": [818, 1719],
+    "San Antonio": [818, 1916],
+    "Mixcoac": [818, 2183],
+    "Barranca del Muerto": [822, 2517],
+
+
+
+
+    "Juarez": [2146, 214],
+    "Balderas": [2146, 590],
+    "Ninos Heroes": [2141, 780],
+
+    "Hospital General": [2141, 995],
+    "Centro Medico": [2141, 1370],
+
+
+    "Etiopia": [2141, 1580],
+
+    "Eugenia": [2141, 1780],
+    "Division del Norte": [2141, 1985],
+    "Zapata": [2136, 2185],
+
+
+    "Coyoacan": [2141, 2385],
+
+    "Viveros": [2141, 2595],
+    "M.A. de Quevedo": [2141, 2795],
+    "Copilco": [2141, 2995],
+    "Universidad": [2141, 3195],
+
+    "Patriotismo": [1283, 1375],
+    "Chilpancingo": [1814, 1375],
+    "Lazaro Cardenas": [2683, 1375],
+
+    "Insurgentes Sur": [1190, 2180],
+    "Hospital 20 de Nov": [1629, 2180],
+    "Parque de los Venados": [2649, 2180],
+    "Eje Central": [2961, 2654]
+}
