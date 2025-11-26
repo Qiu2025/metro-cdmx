@@ -11,7 +11,7 @@ import json
 # CONSTANTES
 # =============================================================
 PENALIZACION = 300  # Penalización por transbordo (5 minutos)
-TIEMPO_PARADA = 20  # Tiempo de parada en cada estación
+TIEMPO_PARADA = 30  # Tiempo de parada en cada estación
 VELOCIDAD_METRO = 10.0  # m/s
 
 # Latitud y longitud
