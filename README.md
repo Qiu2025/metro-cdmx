@@ -35,5 +35,7 @@ Una aplicación de escritorio desarrollada en Python para calcular rutas y tiemp
 ## Notas
 - Las distancias y coordenadas son aproximadas.
 - El modelo incluye un subconjunto de líneas.
-- El tiempo calculado es una estimación teórica basada en velocidad constante.
-- Los servicios de accesibilidad se consideran únicamente en transbordos.
+- El tiempo calculado es una estimación teórica basada en velocidad constante (10 m/s)
+- Los servicios de accesibilidad se consideran únicamente en la estación inicial y final y en los transbordos.
+- Los transbordos implican una penalización de 5 minutos.
+- Cada estación intermedia implica una penalización de 30 segundos.
