@@ -1,41 +1,41 @@
-# Metro CDMX - Calculadora de Rutas
-Una aplicación de escritorio desarrollada en Python para calcular rutas y tiempos de viaje estimados en el sistema de Metro de la Ciudad de México.
+# Metro CDMX - Route Calculator  
+A desktop application developed in Python to calculate routes and estimated travel times in the Mexico City Metro system.
 
-> [!Warning]
-> Se trata de un proyecto académico realizado en pocas semanas, por lo que su cobertura se limita a una sección del sistema del Metro de la Ciudad de México y no abarca toda la red. Asimismo, puede presentar limitaciones de rendimiento (especialmente en Windows) o problemas relacionados con el tamaño de la ventana, ya que no contamos con amplia experiencia en Python ni en sus librerías. Para más detalles consulta la sección de [Notas](#Notas).
+> [!Warning]  
+> This is an academic project completed in a few weeks, so its coverage is limited to a section of the Mexico City Metro system and does not include the entire network. It may also present performance limitations (especially on Windows) or issues related to window size, as we do not have extensive experience with Python or its libraries. For more details, see the [Notes](#Notes) section.
 
-> [!Note]
-> Puede visualizar el archivo ppt del proyecto haciendo click
-> [aquí](https://www.canva.com/design/DAG6dDJUXF8/CQd0U0vlWWYd-ESSwZLuug/view?utm_content=DAG6dDJUXF8&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h306a0f4a96)
+> [!Note]  
+> You can view the project’s PPT file by clicking
+> [here](https://www.canva.com/design/DAG6dDJUXF8/CQd0U0vlWWYd-ESSwZLuug/view?utm_content=DAG6dDJUXF8&utm_campaign=designshare&utm_medium=link2&utm_source=uniquelinks&utlId=h306a0f4a96)
 
-## Características
-- 🗺️ **Visualización interactiva**: Mapa del Metro CDMX con resaltado de la ruta calculada
-- ⏱️ **Cálculo de rutas óptimas**: Utiliza el algoritmo A* para encontrar el camino más rápido
-- ♿ **Filtros de accesibilidad**: Opciones para usuarios que requieren escaleras electromecánicas o ascensores
-- 📊 **Información detallada**: Muestra tiempo estimado, número de estaciones y transbordos
+## Features  
+- 🗺️ **Interactive visualization**: Mexico City Metro map with the calculated route highlighted  
+- ⏱️ **Optimal route calculation**: Uses the A* algorithm to find the fastest path  
+- ♿ **Accessibility filters**: Options for users who require escalators or elevators  
+- 📊 **Detailed information**: Displays estimated time, number of stations, and transfers  
 
-## Tecnologías utilizadas
-- Python 3
-- Tkinter (interfaz gráfica)
-- NetworkX (modelado del grafo)
-- Pillow (carga y redimensionado de imagen)
-- heapq (cola de prioridad para A*)
+## Technologies used  
+- Python 3  
+- Tkinter (graphical interface)  
+- NetworkX (graph modeling)  
+- Pillow (image loading and resizing)  
+- heapq (priority queue for A*)  
 
-## Uso
-1. Seleccionar estación de origen.
-2. Seleccionar estación de destino.
-3. Opcionalmente activar filtros de accesibilidad.
-4. Pulsar "BUSCAR RUTA".
-5. La aplicación mostrará:
-   - Tiempo aproximado.
-   - Número de estaciones.
-   - Número de transbordos.
-   - Ruta resaltada en el mapa.
+## Usage  
+1. Select the origin station.  
+2. Select the destination station.  
+3. Optionally enable accessibility filters.  
+4. Click "SEARCH ROUTE".  
+5. The application will display:  
+   - Approximate time.  
+   - Number of stations.  
+   - Number of transfers.  
+   - Highlighted route on the map.  
 
-## Notas
-- Las distancias y coordenadas son aproximadas.
-- El modelo incluye un subconjunto de líneas.
-- El tiempo calculado es una estimación teórica basada en velocidad constante (10 m/s)
-- Los servicios de accesibilidad se consideran únicamente en la estación inicial y final y en los transbordos.
-- Los transbordos implican una penalización de 5 minutos.
-- Cada estación intermedia implica una penalización de 30 segundos.
+## Notes  
+- Distances and coordinates are approximate.  
+- The model includes a subset of lines.  
+- The calculated time is a theoretical estimation based on constant speed (10 m/s).  
+- Accessibility services are considered only at the initial and final stations and during transfers.  
+- Transfers imply a 5-minute penalty.  
+- Each intermediate station implies a 30-second penalty.
