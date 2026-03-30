@@ -10,7 +10,7 @@ You can view the project’s PPT file by clicking [here](https://www.canva.com/d
 > 
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/9e678039-2d8e-4a51-921f-42309f8a4cf2"></video>
+  <video src="https://github.com/user-attachments/assets/3fbe715f-9ca7-410e-9bd1-102c9edbd156"></video>
 </div>
 
 ## Features  
